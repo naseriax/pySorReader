@@ -2,7 +2,7 @@
 ###    Category                : Automation                     ###
 ###    Created by              : Naseredin aramnejad            ###
 ###    Tested Environment      : Python 3.9.4                   ###
-###    Last Modification Date  : 06/12/2021                     ###
+###    Last Modification Date  : 25/08/2023                     ###
 ###    Contact Information     : naseredin.aramnejad@gmail.com  ###
 ###    Requirements            : "pip3 install matplotlib"      ###
 ###################################################################
@@ -10,9 +10,12 @@
 import json
 from datetime import datetime
 import matplotlib.pyplot as plt
-
+import re
+from pprint import pprint as pp
+from textwrap import wrap
 
 __author__ = "Naseredin Aramnejad"
+
 class sorReader:
     def __init__(self,filename):
         self.filename = filename
@@ -22,6 +25,7 @@ class sorReader:
             self.rawdecodedfile = rawdata.read()
         self.hexdata = self.rawdecodedfile.hex()
         self.decodedfile = "".join(list(map(chr,self.rawdecodedfile)))
+        self.SecLocs = self.GetOrder()
         self.jsonoutput["bellcoreVersion"] = self.bellcore_version()
         self.jsonoutput["totalLoss_dB)"] = self.totalloss()
         self.jsonoutput["vacuumSpeed_m/us"] = self.c
@@ -33,7 +37,42 @@ class sorReader:
         self.jsonoutput["events"] = self.keyEvents()
         self.jsondump()
 
-   
+    def GetNext(self,key):
+        if key in self.SecLocs:
+            index = self.SecLocs[key][0]
+            next = index + 9999999999999
+            for k,v in self.SecLocs.items():
+                if k == key:
+                    continue
+                if v[0] > index and v[0] < next:
+                    next = v[0]
+            for k,v in self.SecLocs.items():
+                if v[0] == next:
+                    return k
+        return None
+
+    def GetOrder(self):
+        sections = [
+                        "SupParams",
+                        "Map",
+                        "FxdParams",
+                        "DataPts",
+                        "KeyEvents",
+                        "WaveMTSParams",
+                        "GenParams",
+                        "WavetekTwoMTS",
+                        "WavetekThreeMTS",
+                        "BlocOtdrPrivate",
+                        "ActernaConfig",
+                        "ActernaMiniCurve",
+                        "JDSUEvenementsMTS"
+                        ]
+        SectionLocations = {}
+        for word in sections:
+            SectionLocations[word] = [m.start() for m in re.finditer(word,self.decodedfile)]
+
+        return SectionLocations
+
     def ploter(self):
 
         c = plt.subplots(figsize=(13,8))[1]
@@ -87,24 +126,19 @@ class sorReader:
         print("json file generated!")
 
     def bellcore_version(self):
-        return self.hexparser((self.hexdata[(self.decodedfile.find("Map")+4)\
-                             *2:(self.decodedfile.find("Map")+5)*2]))/ 100
+        return self.hexparser((self.hexdata[(self.SecLocs["Map"][0]+4)*2:(self.SecLocs["Map"][0]+5)*2]))/ 100
 
     def totalloss(self):
-        totallossinfo = self.hexdata[(self.decodedfile.find("WaveMTSParams",224)-22)*2:\
-             (self.decodedfile.find("WaveMTSParams",224)-18)*2]
+        totallossinfo = self.hexdata[(self.SecLocs["WaveMTSParams"][1]-22)*2:(self.SecLocs["WaveMTSParams"][1]-18)*2]
         return str(round(self.hexparser(totallossinfo)*0.001,3))
 
     def fiberlength(self):
-        length = self.hexparser(self.hexdata[(self.decodedfile.\
-            find('WaveMTSParams',224)-14)*2:(self.decodedfile.find('WaveMTSParams',224)-10)*2])
-         
+        length = self.hexparser(self.hexdata[(self.SecLocs["WaveMTSParams"][1]-14)*2:(self.SecLocs["WaveMTSParams"][1]-10)*2])
         return round(length * 10 ** -4 * self.c / self.jsonoutput['refractionIndex'],3)
 
     def SupParams(self):
         supInfos = {}
-        supInfo = self.decodedfile[self.decodedfile.find("SupParams",224)+10:\
-                  self.decodedfile.find("FxdParams",224)].split("\x00")[:-1]
+        supInfo = self.decodedfile[self.SecLocs["SupParams"][1]+10:self.SecLocs[self.GetNext("SupParams")][1]].split("\x00")[:-1]
         supInfos["otdrSupplier"] = supInfo[0].strip()
         supInfos["otdrName"] = supInfo[1].strip()
         supInfos["otdrSN"] = supInfo[2].strip()
@@ -117,8 +151,7 @@ class sorReader:
     def genParams(self):
         buildInfo = {"BC": "as-built","CC": "as-current","RC": "as-repaired","OT": "other"}
         genInfos = {}
-        genInfo = self.decodedfile[self.decodedfile.find("GenParams",224)+10:\
-                  self.decodedfile.find("SupParams",224)].split("\x00")[:-1]
+        genInfo = self.decodedfile[self.SecLocs["GenParams"][1]+10:self.SecLocs[self.GetNext("GenParams")][1]].split("\x00")[:-1]
         genInfos["lang"] = genInfo[0][:2].strip()
         genInfos["cableId"] = genInfo[0][2:].strip()
         genInfos["fiberId"] = genInfo[1].strip()
@@ -134,7 +167,7 @@ class sorReader:
 
     def fixedParams(self):
         fixInfos = {}
-        fixInfo = self.hexdata[(self.decodedfile.find("FxdParams",224)+10)*2:(self.decodedfile.find("DataPts",224)*2)]
+        fixInfo = self.hexdata[(self.SecLocs["FxdParams"][1]+10)*2:(self.SecLocs[self.GetNext("FxdParams")][1]*2)]
         fixInfos["dateTime"] = datetime.fromtimestamp(self.hexparser(fixInfo[:8])).strftime('%Y-%m-%d %H:%M:%S')
         fixInfos["unit"] = self.hexparser(fixInfo[8:12],"schreiben")
         fixInfos["actualWavelength_nm"] = self.hexparser(fixInfo[12:16]) / 10
@@ -154,7 +187,8 @@ class sorReader:
     def dataPts(self):
         def dB(point):
             return point * -1000 * 10 ** -6
-        dtpoints = self.hexdata[(self.decodedfile.find("DataPts",224))*2:(self.decodedfile.find("KeyEvents",224)*2)][40:]
+    
+        dtpoints = self.hexdata[self.SecLocs["DataPts"][1]*2:self.SecLocs[self.GetNext("DataPts")][1]*2][40:]
         self.dataset = {}
         for length in range(self.jsonoutput['sampleQty']):
             passedlen = round(length * self.jsonoutput['resolution_m'],3)
@@ -162,29 +196,37 @@ class sorReader:
 
     def keyEvents(self):
         keyevents = {}
-        events = self.hexdata[(self.decodedfile.find("KeyEvents",224))*2:(self.decodedfile.find("WaveMTSParams",224)*2)]
+        events = self.hexdata[self.SecLocs["KeyEvents"][1]*2:self.SecLocs[self.GetNext("KeyEvents")][1]*2]
         evnumbers= self.hexparser(events[20:24])
-        eventhex = [events[24:][i:i+88] for i in range(0,88 * evnumbers,88)]
+        pure_events = events[24:-44]
+        eventhex = wrap(pure_events, width=int(len(pure_events)/evnumbers))
         for e in eventhex:
-            eNum = self.hexparser(e[:4])
-            keyevents[eNum] = {}
-            keyevents[eNum]["eventPoint_m"] = self.hexparser(e[4:12]) * 10 ** -4 * self.jsonoutput["fiberLightSpeed_km/ms"]
-            stValue = keyevents[eNum]["eventPoint_m"] % self.jsonoutput["resolution_m"]
-            if stValue >= self.jsonoutput["resolution_m"] / 2:
-                keyevents[eNum]["eventPoint_m"] = round(keyevents[eNum]["eventPoint_m"] + \
-                                            (self.jsonoutput["resolution_m"] - stValue),3)
-            else:
-                keyevents[eNum]["eventPoint_m"] = round(keyevents[eNum]["eventPoint_m"] - stValue , 3)
-            keyevents[eNum]["slope"] = round(self.hexparser(e[12:16]) * 0.001,3)
-            keyevents[eNum]["spliceLoss_dB"] = round(self.hexparser(e[16:20]) * 0.001,3)
-            keyevents[eNum]["reflectionLoss_dB"] = round((self.hexparser(e[20:28]) - 2**32) * \
-                0.001 if self.hexparser(e[20:28]) > 0 else self.hexparser(e[20:28]),3)
-            keyevents[eNum]["eventType"] = self.hexparser(e[28:44],"schreiben")
-            keyevents[eNum]["endOfPreviousEvent"] = self.hexparser(e[44:52])
-            keyevents[eNum]["beginningOfCurrentEvent"] = self.hexparser(e[52:60])
-            keyevents[eNum]["endOfCurrentEvent"] = self.hexparser(e[60:68])
-            keyevents[eNum]["beginningOfNextEvent"] = self.hexparser(e[68:76])
-            keyevents[eNum]["peakpointInCurrentEvent"] = self.hexparser(e[76:84])
-            if keyevents[eNum]["eventType"][1] == "E":
-                break
+            try:
+                eNum = self.hexparser(e[:4])
+                keyevents[eNum] = {}
+                keyevents[eNum]["eventPoint_m"] = self.hexparser(e[4:12]) * 10 ** -4 * self.jsonoutput["fiberLightSpeed_km/ms"]
+                stValue = keyevents[eNum]["eventPoint_m"] % self.jsonoutput["resolution_m"]
+                if stValue >= self.jsonoutput["resolution_m"] / 2:
+                    keyevents[eNum]["eventPoint_m"] = round(keyevents[eNum]["eventPoint_m"] + \
+                                                (self.jsonoutput["resolution_m"] - stValue),3)
+                else:
+                    keyevents[eNum]["eventPoint_m"] = round(keyevents[eNum]["eventPoint_m"] - stValue , 3)
+                keyevents[eNum]["slope"] = round(self.hexparser(e[14:16]) * 0.001,3)
+                keyevents[eNum]["spliceLoss_dB"] = round(self.hexparser(e[16:20]) * 0.001,3)
+                keyevents[eNum]["reflectionLoss_dB"] = round((self.hexparser(e[20:28]) - 2**32) * \
+                    0.001 if self.hexparser(e[20:28]) > 0 else self.hexparser(e[20:28]),3)
+                keyevents[eNum]["eventType"] = self.hexparser(e[28:44],"schreiben")
+                keyevents[eNum]["endOfPreviousEvent"] = self.hexparser(e[44:52])
+                keyevents[eNum]["beginningOfCurrentEvent"] = self.hexparser(e[52:60])
+                keyevents[eNum]["endOfCurrentEvent"] = self.hexparser(e[60:68])
+                keyevents[eNum]["beginningOfNextEvent"] = self.hexparser(e[68:76])
+                keyevents[eNum]["peakpointInCurrentEvent"] = self.hexparser(e[76:84])
+                if keyevents[eNum]["eventType"][1] == "E":
+                    break
+            except:
+                print(keyevents[eNum]["eventPoint_m"])
+                print(keyevents[eNum]["slope"])
+                print(e[28:44])
+                exit()
+            
         return keyevents
