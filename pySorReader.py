@@ -6,15 +6,8 @@
 ###    Contact Information     : naseredin.aramnejad@gmail.com  ###
 ###    Requirements            : "pip3 install matplotlib"      ###
 ###################################################################
-
-import json
-from datetime import datetime
-import matplotlib.pyplot as plt
-import re
-from pprint import pprint as pp
-from textwrap import wrap
-
-__author__ = "Naseredin Aramnejad"
+_
+_author__ = "Naseredin Aramnejad"
 
 class sorReader:
     def __init__(self,filename):
@@ -27,7 +20,7 @@ class sorReader:
         self.decodedfile = "".join(list(map(chr,self.rawdecodedfile)))
         self.SecLocs = self.GetOrder()
         self.jsonoutput["bellcoreVersion"] = self.bellcore_version()
-        self.jsonoutput["totalLoss_dB)"] = self.totalloss()
+        self.jsonoutput["totalLoss_dB"] = self.totalloss()
         self.jsonoutput["vacuumSpeed_m/us"] = self.c
         self.jsonoutput.update(self.SupParams())
         self.jsonoutput.update(self.genParams())
@@ -98,7 +91,7 @@ class sorReader:
             elif float(tmp2['spliceLoss_dB']) <= 1:
                 lossQ = " - OK"
             else:
-                lossQ = " - !!!" 
+                lossQ = " - !" 
                 
             c.annotate("",xy=(tmp1,self.dataset[tmp1] + 1),
                        xytext=(tmp1,self.dataset[tmp1] - 1),
@@ -181,7 +174,7 @@ class sorReader:
         fixInfos["backscatteringCo_dB"] = self.hexparser(fixInfo[64:68]) * -0.1
         fixInfos["averaging"] = self.hexparser(fixInfo[68:76])
         fixInfos["averagingTime_M"] = round(self.hexparser(fixInfo[76:80])/600,3)
-        fixInfos["range_km"] = round(fixInfos["sampleQty"] * fixInfos["resolution_m"],3)
+        fixInfos["range_m"] = round(fixInfos["sampleQty"] * fixInfos["resolution_m"],3)
         return fixInfos
 
     def dataPts(self):
