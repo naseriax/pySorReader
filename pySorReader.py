@@ -2,12 +2,19 @@
 ###    Category                : Automation                     ###
 ###    Created by              : Naseredin aramnejad            ###
 ###    Tested Environment      : Python 3.9.4                   ###
-###    Last Modification Date  : 25/08/2023                     ###
+###    Last Modification Date  : 28/08/2023                     ###
 ###    Contact Information     : naseredin.aramnejad@gmail.com  ###
 ###    Requirements            : "pip3 install matplotlib"      ###
 ###################################################################
-_
-_author__ = "Naseredin Aramnejad"
+
+import json
+from datetime import datetime
+import matplotlib.pyplot as plt
+import re
+from pprint import pprint as pp
+from textwrap import wrap
+
+__author__ = "Naseredin Aramnejad"
 
 class sorReader:
     def __init__(self,filename):
