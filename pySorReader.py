@@ -122,7 +122,7 @@ class sorReader:
         if mode == "schmutzig":
             return int("0x" + "".join(list(map(hex,list(map(ord,cleanhex))))[::-1]).replace("0x",""),0)
         elif mode == "schreiben":
-            return bytes.fromhex("".join([cleanhex[i:i+2] for i in range(0,len(cleanhex),2)])).decode("ASCII")
+            return bytes.fromhex(cleanhex).decode()
         elif mode== "loss":
             return int(struct.unpack('h', bytes.fromhex(cleanhex))[0])
         else:
