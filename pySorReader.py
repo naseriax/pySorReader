@@ -2,7 +2,7 @@
 ###    Category                : Automation                     ###
 ###    Created by              : Naseredin aramnejad            ###
 ###    Tested Environment      : Python 3.9.4                   ###
-###    Last Modification Date  : 28/08/2023                     ###
+###    Last Modification Date  : 29/08/2023                     ###
 ###    Contact Information     : naseredin.aramnejad@gmail.com  ###
 ###    Requirements            : "pip3 install matplotlib"      ###
 ###################################################################
@@ -12,7 +12,9 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import re
 from pprint import pprint as pp
+import sys
 from textwrap import wrap
+import struct
 
 __author__ = "Naseredin Aramnejad"
 
@@ -21,8 +23,12 @@ class sorReader:
         self.filename = filename
         self.jsonoutput = {}
         self.c = 299.79181901
-        with open(filename,"rb") as rawdata:
-            self.rawdecodedfile = rawdata.read()
+        try:
+            with open(filename,"rb") as rawdata:
+                self.rawdecodedfile = rawdata.read()
+        except FileNotFoundError:
+            print("file {} not found!".format(filename))
+            sys.exit()
         self.hexdata = self.rawdecodedfile.hex()
         self.decodedfile = "".join(list(map(chr,self.rawdecodedfile)))
         self.SecLocs = self.GetOrder()
@@ -91,14 +97,14 @@ class sorReader:
                 if float(tmp2['reflectionLoss_dB']) <= -40:
                     refQ = " - OK"
                 else:
-                    refQ = " - !!!"
+                    refQ = " - !"
             
             if float(tmp2['spliceLoss_dB']) == 0:
                 lossQ = " - Ghost!"
             elif float(tmp2['spliceLoss_dB']) <= 1:
                 lossQ = " - OK"
             else:
-                lossQ = " - !" 
+                lossQ = " - !!!" 
                 
             c.annotate("",xy=(tmp1,self.dataset[tmp1] + 1),
                        xytext=(tmp1,self.dataset[tmp1] - 1),
@@ -112,11 +118,13 @@ class sorReader:
         plt.grid()
         plt.show()
 
-    def hexparser(self,cleanhex,mode="sauber"):
+    def hexparser(self,cleanhex,mode=""):
         if mode == "schmutzig":
             return int("0x" + "".join(list(map(hex,list(map(ord,cleanhex))))[::-1]).replace("0x",""),0)
         elif mode == "schreiben":
             return bytes.fromhex("".join([cleanhex[i:i+2] for i in range(0,len(cleanhex),2)])).decode("ASCII")
+        elif mode== "loss":
+            return int(struct.unpack('h', bytes.fromhex(cleanhex))[0])
         else:
             return int("0x"+"".join([cleanhex[i:i+2] for i in range(0,len(cleanhex),2)][::-1]),0)   
 
@@ -211,7 +219,7 @@ class sorReader:
             else:
                 keyevents[eNum]["eventPoint_m"] = round(keyevents[eNum]["eventPoint_m"] - stValue , 3)
             keyevents[eNum]["slope"] = round(self.hexparser(e[14:16]) * 0.001,3)
-            keyevents[eNum]["spliceLoss_dB"] = round(self.hexparser(e[16:20]) * 0.001,3)
+            keyevents[eNum]["spliceLoss_dB"] = round(self.hexparser(e[16:20],"loss") * 0.001,3)
             keyevents[eNum]["reflectionLoss_dB"] = round((self.hexparser(e[20:28]) - 2**32) * \
                 0.001 if self.hexparser(e[20:28]) > 0 else self.hexparser(e[20:28]),3)
             keyevents[eNum]["eventType"] = self.hexparser(e[28:44],"schreiben")
