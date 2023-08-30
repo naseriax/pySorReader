@@ -33,6 +33,8 @@ class sorReader:
         self.decodedfile = "".join(list(map(chr,self.rawdecodedfile)))
         self.SecLocs = self.GetOrder()
         self.jsonoutput["bellcoreVersion"] = self.bellcore_version()
+        if "2.1" not in str(self.jsonoutput["bellcoreVersion"]):
+            print("This script works best with bellcore Version 2.1 and may not be completely compatible with this file: {}.".format(self.jsonoutput["bellcoreVersion"]))
         self.jsonoutput["totalLoss_dB"] = self.totalloss()
         self.jsonoutput["vacuumSpeed_m/us"] = self.c
         self.jsonoutput.update(self.SupParams())
@@ -104,7 +106,7 @@ class sorReader:
             elif float(tmp2['spliceLoss_dB']) <= 1:
                 lossQ = " - OK"
             else:
-                lossQ = " - !!!" 
+                lossQ = " - !" 
                 
             c.annotate("",xy=(tmp1,self.dataset[tmp1] + 1),
                        xytext=(tmp1,self.dataset[tmp1] - 1),
@@ -233,7 +235,7 @@ class sorReader:
 
 
 if __name__ == "__main__":
-    sorFilePath = "3.sor"
+    sorFilePath = "fds.sor"
     c = sorReader(sorFilePath)
     pp(c.jsonoutput)
     c.ploter()
