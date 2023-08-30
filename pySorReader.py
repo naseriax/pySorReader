@@ -230,3 +230,10 @@ class sorReader:
             keyevents[eNum]["peakpointInCurrentEvent"] = self.hexparser(e[76:84])
 
         return keyevents
+
+
+if __name__ == "__main__":
+    sorFilePath = "3.sor"
+    c = sorReader(sorFilePath)
+    pp(c.jsonoutput)
+    c.ploter()
