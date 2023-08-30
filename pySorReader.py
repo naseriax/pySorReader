@@ -142,7 +142,7 @@ class sorReader:
 
     def fiberlength(self):
         length = self.hexparser(self.hexdata[(self.SecLocs["WaveMTSParams"][1]-14)*2:(self.SecLocs["WaveMTSParams"][1]-10)*2])
-        return round(length * 10 ** -4 * self.c / self.jsonoutput['refractionIndex'],3)
+        return round(length * (10 ** -4) * self.c / self.jsonoutput['refractionIndex'],3)
 
     def SupParams(self):
         supInfos = {}
@@ -183,9 +183,9 @@ class sorReader:
         fixInfos["pulseWidth_ns"] = self.hexparser(fixInfo[36:40])
         fixInfos["sampleQty"] = self.hexparser(fixInfo[48:56])
         fixInfos['ior'] = self.hexparser(fixInfo[56:64])
-        fixInfos["refractionIndex"] = fixInfos['ior']* 10 ** -5
+        fixInfos["refractionIndex"] = fixInfos['ior']* (10 ** -5)
         fixInfos["fiberLightSpeed_km/ms"] = self.c / fixInfos['refractionIndex']
-        fixInfos["resolution_m"] = self.hexparser(fixInfo[40:48]) * 10 ** -8 * fixInfos["fiberLightSpeed_km/ms"]
+        fixInfos["resolution_m"] = self.hexparser(fixInfo[40:48]) * (10 ** -8) * fixInfos["fiberLightSpeed_km/ms"]
         fixInfos["backscatteringCo_dB"] = self.hexparser(fixInfo[64:68]) * -0.1
         fixInfos["averaging"] = self.hexparser(fixInfo[68:76])
         fixInfos["averagingTime_M"] = round(self.hexparser(fixInfo[76:80])/600,3)
@@ -194,7 +194,7 @@ class sorReader:
 
     def dataPts(self):
         def dB(point):
-            return point * -1000 * 10 ** -6
+            return point * -1000 * (10 ** -6)
     
         dtpoints = self.hexdata[self.SecLocs["DataPts"][1]*2:self.SecLocs[self.GetNext("DataPts")][1]*2][40:]
         self.dataset = {}
@@ -211,16 +211,16 @@ class sorReader:
         for e in eventhex:
             eNum = self.hexparser(e[:4])
             keyevents[eNum] = {}
-            keyevents[eNum]["eventPoint_m"] = self.hexparser(e[4:12]) * 10 ** -4 * self.jsonoutput["fiberLightSpeed_km/ms"]
+            keyevents[eNum]["eventPoint_m"] = self.hexparser(e[4:12]) * (10 ** -4) * self.jsonoutput["fiberLightSpeed_km/ms"]
             stValue = keyevents[eNum]["eventPoint_m"] % self.jsonoutput["resolution_m"]
             if stValue >= self.jsonoutput["resolution_m"] / 2:
-                keyevents[eNum]["eventPoint_m"] = round(keyevents[eNum]["eventPoint_m"] + \
-                                            (self.jsonoutput["resolution_m"] - stValue),3)
+                keyevents[eNum]["eventPoint_m"] = round(keyevents[eNum]["eventPoint_m"] +(self.jsonoutput["resolution_m"] - stValue),3)
             else:
                 keyevents[eNum]["eventPoint_m"] = round(keyevents[eNum]["eventPoint_m"] - stValue , 3)
-            keyevents[eNum]["slope"] = round(self.hexparser(e[14:16]) * 0.001,3)
+
+            keyevents[eNum]["slope"] = round(self.hexparser(e[12:16]) * 0.001,3)
             keyevents[eNum]["spliceLoss_dB"] = round(self.hexparser(e[16:20],"loss") * 0.001,3)
-            keyevents[eNum]["reflectionLoss_dB"] = round((self.hexparser(e[20:28]) - 2**32) * \
+            keyevents[eNum]["reflectionLoss_dB"] = round((self.hexparser(e[20:28]) - (2**32)) * \
                 0.001 if self.hexparser(e[20:28]) > 0 else self.hexparser(e[20:28]),3)
             keyevents[eNum]["eventType"] = self.hexparser(e[28:44],"schreiben")
             keyevents[eNum]["endOfPreviousEvent"] = self.hexparser(e[44:52])
