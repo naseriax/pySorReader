@@ -32,6 +32,7 @@ class sorReader:
         self.hexdata = self.rawdecodedfile.hex()
         self.decodedfile = "".join(list(map(chr,self.rawdecodedfile)))
         self.SecLocs = self.GetOrder()
+        pp(self.SecLocs)
         self.jsonoutput["bellcoreVersion"] = self.bellcore_version()
         if "2.1" not in str(self.jsonoutput["bellcoreVersion"]):
             print("This script works best with bellcore Version 2.1 and may not be completely compatible with this file: {}.".format(self.jsonoutput["bellcoreVersion"]))
@@ -46,16 +47,21 @@ class sorReader:
         self.jsondump()
 
     def GetNext(self,key):
+        print(key)
         if key in self.SecLocs:
             index = self.SecLocs[key][0]
+            print(index)
             next = index + 9999999999999
+            print(next)
             for k,v in self.SecLocs.items():
-                if k == key:
+                if k == key or len(v) == 0:
                     continue
                 if v[0] > index and v[0] < next:
                     next = v[0]
+                    print(next)
             for k,v in self.SecLocs.items():
                 if v[0] == next:
+                    print(k)
                     return k
         return None
 
@@ -112,7 +118,7 @@ class sorReader:
                        xytext=(tmp1,self.dataset[tmp1] - 1),
                         arrowprops=dict(arrowstyle="<->",color="red",connectionstyle= "bar,fraction=0"))
 
-            c.annotate(f"  Event:{ev}\n  Type:  {eventType}\n  Len:   {round(tmp1,1)}m\n  Ref:   {tmp2['reflectionLoss_dB']}dB{refQ}\n  Loss:  {tmp2['spliceLoss_dB']}dB{lossQ}",
+            c.annotate(f"  Event:{ev}\n  EventType:  {tmp2['eventType']}\n  Type:  {eventType}\n  Len:   {round(tmp1,1)}m\n  Ref:   {tmp2['reflectionLoss_dB']}dB{refQ}\n  Loss:  {tmp2['spliceLoss_dB']}dB{lossQ}",
                       xy=(tmp1,self.dataset[tmp1]),
                           xytext=(tmp1,self.dataset[tmp1]-1))
 
@@ -235,7 +241,7 @@ class sorReader:
 
 
 if __name__ == "__main__":
-    sorFilePath = "fds.sor"
+    sorFilePath = "ddfs.sor"
     c = sorReader(sorFilePath)
     pp(c.jsonoutput)
     c.ploter()
