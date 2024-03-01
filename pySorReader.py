@@ -96,8 +96,9 @@ class sorReader:
             lossQ = ""
             tmp1 = self.jsonoutput["events"][ev]['eventPoint_m']
             tmp2 = self.jsonoutput['events'][ev]
-            
-            if float(tmp2['reflectionLoss_dB']) == 0:
+            if tmp2['eventType'] == "0E9999LS":
+                eventType = "EOF"
+            elif float(tmp2['reflectionLoss_dB']) == 0:
                 eventType = "Splice"
                 refQ = " - OK"
             else:
