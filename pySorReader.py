@@ -15,6 +15,7 @@ from pprint import pprint as pp
 import sys
 from textwrap import wrap
 import struct
+from matplotlib.ticker import MultipleLocator
 
 __author__ = "Naseredin Aramnejad"
 
@@ -34,8 +35,8 @@ class sorReader:
         self.SecLocs = self.GetOrder()
         pp(self.SecLocs)
         self.jsonoutput["bellcoreVersion"] = self.bellcore_version()
-        if "2.1" not in str(self.jsonoutput["bellcoreVersion"]):
-            print("This script works best with bellcore Version 2.1 and may not be completely compatible with this file: {}.".format(self.jsonoutput["bellcoreVersion"]))
+        # if "2.1" not in str(self.jsonoutput["bellcoreVersion"]):
+        #     print("This script works best with bellcore Version 2.1 and may not be completely compatible with this file: {}.".format(self.jsonoutput["bellcoreVersion"]))
         self.jsonoutput["totalLoss_dB"] = self.totalloss()
         self.jsonoutput["vacuumSpeed_m/us"] = self.c
         self.jsonoutput.update(self.SupParams())
@@ -47,21 +48,18 @@ class sorReader:
         self.jsondump()
 
     def GetNext(self,key):
-        print(key)
         if key in self.SecLocs:
             index = self.SecLocs[key][0]
-            print(index)
             next = index + 9999999999999
-            print(next)
             for k,v in self.SecLocs.items():
                 if k == key or len(v) == 0:
                     continue
                 if v[0] > index and v[0] < next:
                     next = v[0]
-                    print(next)
             for k,v in self.SecLocs.items():
+                if len(v) == 0:
+                    continue
                 if v[0] == next:
-                    print(k)
                     return k
         return None
 
@@ -71,6 +69,7 @@ class sorReader:
                         "Map",
                         "FxdParams",
                         "DataPts",
+                        "NokiaParams",
                         "KeyEvents",
                         "WaveMTSParams",
                         "GenParams",
@@ -84,19 +83,23 @@ class sorReader:
         SectionLocations = {}
         for word in sections:
             SectionLocations[word] = [m.start() for m in re.finditer(word,self.decodedfile)]
+        
 
         return SectionLocations
 
     def ploter(self):
 
-        c = plt.subplots(figsize=(13,8))[1]
-        c.plot(self.dataset.keys(),self.dataset.values(),color='tab:green',lw=0.6)
+        c = plt.subplots(figsize=(15,10))[1]
+        c.set_facecolor('white')
+        c.plot(self.dataset.keys(),self.dataset.values(),color='darkgreen',lw=2)
+        c.grid(True, color='gray', linestyle='--', linewidth=0.5) 
+        c.tick_params(color='dimgray', labelcolor='dimgray')  
         for ev in self.jsonoutput["events"]:
             refQ = ""
             lossQ = ""
             tmp1 = self.jsonoutput["events"][ev]['eventPoint_m']
             tmp2 = self.jsonoutput['events'][ev]
-            if tmp2['eventType'] == "0E9999LS":
+            if "E9999" in tmp2['eventType']:
                 eventType = "EOF"
             elif float(tmp2['reflectionLoss_dB']) == 0:
                 eventType = "Splice"
@@ -119,12 +122,12 @@ class sorReader:
                        xytext=(tmp1,self.dataset[tmp1] - 1),
                         arrowprops=dict(arrowstyle="<->",color="red",connectionstyle= "bar,fraction=0"))
 
-            c.annotate(f"  Event:{ev}\n  EventType:  {tmp2['eventType']}\n  Type:  {eventType}\n  Len:   {round(tmp1,1)}m\n  Ref:   {tmp2['reflectionLoss_dB']}dB{refQ}\n  Loss:  {tmp2['spliceLoss_dB']}dB{lossQ}",
+            c.annotate(f"  Event:{ev}\n  EventType:  {tmp2['eventType']}\n  Type:  {eventType}\n  Len:   {round(tmp1,1)}m\n  RefLoss:   {tmp2['reflectionLoss_dB']}dB{refQ}\n  Loss:  {tmp2['spliceLoss_dB']}dB{lossQ}",
                       xy=(tmp1,self.dataset[tmp1]),
-                          xytext=(tmp1,self.dataset[tmp1]-1))
+                          xytext=(tmp1,self.dataset[tmp1]-1),fontsize=8)
 
         c.set(xlabel='Fiber Length (m)', ylabel='Optical Power(dB)',title='OTDR Graph')
-        plt.grid()
+        # plt.grid()
         plt.show()
 
     def hexparser(self,cleanhex,mode=""):
@@ -140,7 +143,7 @@ class sorReader:
     def jsondump(self):
         with open(self.filename.replace("sor","json"),"w") as output:
             json.dump(self.jsonoutput,output)
-        print("json file generated!")
+        # print("json file generated!")
 
     def bellcore_version(self):
         return self.hexparser((self.hexdata[(self.SecLocs["Map"][0]+4)*2:(self.SecLocs["Map"][0]+5)*2]))/ 100
