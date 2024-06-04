@@ -15,11 +15,12 @@ from pprint import pprint as pp
 import sys
 from textwrap import wrap
 import struct
-from pprint import pprint as pp
-import itertools
+import plotly.tools as tls # Import this for make_subplots
+import numpy as np
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go  # For annotations
+import plotly.graph_objects as go
+
 
 __author__ = "Naseredin Aramnejad"
 
@@ -37,18 +38,8 @@ class sorReader:
         self.hexdata = self.rawdecodedfile.hex()
         self.decodedfile = "".join(list(map(chr,self.rawdecodedfile)))
         self.SecLocs = self.GetOrder()
-        self.jsonoutput["bellcoreVersion"] = self.bellcore_version()
-        # if "2.1" not in str(self.jsonoutput["bellcoreVersion"]):
-        #     print("This script works best with bellcore Version 2.1 and may not be completely compatible with this file: {}.".format(self.jsonoutput["bellcoreVersion"]))
-        self.jsonoutput["totalLoss_dB"] = self.totalloss()
-        self.jsonoutput["vacuumSpeed_m/us"] = self.c
-        self.jsonoutput.update(self.SupParams())
-        self.jsonoutput.update(self.genParams())
         self.jsonoutput.update(self.fixedParams())
-        self.jsonoutput["fiberLength_m"] = self.fiberlength()
         self.dataPts()
-        self.jsonoutput["events"] = self.keyEvents()
-        self.jsondump()
 
     def GetNext(self,key):
         if key in self.SecLocs:
@@ -90,118 +81,145 @@ class sorReader:
 
         return SectionLocations
 
-    def plotly(self,draw="line"):
-
-        # Data Preparation
-        df = pd.DataFrame({'Fiber Length (m)': list(self.dataset.keys()),
-                        'Optical Power(dB)': list(self.dataset.values())})
-
-        # Base Plotly Express Graph
-        if draw == "line":
-            fig = px.line(df, x='Fiber Length (m)', y='Optical Power(dB)', color_discrete_sequence=['darkgreen'],title='OTDR Graph')
-        else:
-            fig = px.scatter(df, x='Fiber Length (m)', y='Optical Power(dB)', color_discrete_sequence=['darkgreen'],title='OTDR Graph')
-
-        fig.update_layout(xaxis_title='Fiber Length (m)', yaxis_title='Optical Power(dB)')
-
-        # Grid and Tick Styling
-        fig.update_layout(
-            xaxis=dict(gridcolor='gray', gridwidth=0.5, linecolor='dimgray'),
-            yaxis=dict(gridcolor='gray', gridwidth=0.5, linecolor='dimgray'),
-            paper_bgcolor='white',
-            plot_bgcolor='white'
-        )
-
-        # Annotations
-        for ev in self.jsonoutput["events"]:
-            tmp1 = self.jsonoutput["events"][ev]['eventPoint_m']
-            tmp2 = self.jsonoutput['events'][ev]
-
-            # Event Type Logic
-            if "E9999" in tmp2['eventType']:
-                eventType = "EOF"
-            elif float(tmp2['reflectionLoss_dB']) == 0:
-                eventType = "Splice"
-                refQ = " - OK"
-            else:
-                eventType = "Connector"
-                if float(tmp2['reflectionLoss_dB']) <= -40:
-                    refQ = " - OK"
-                else:
-                    refQ = " - !"
-
-            # Loss Logic
-            if float(tmp2['spliceLoss_dB']) == 0:
-                lossQ = " - Ghost!"
-            elif float(tmp2['spliceLoss_dB']) <= 1:
-                lossQ = " - OK"
-            else:
-                lossQ = " - !" 
-
-            # Arrow Annotation
-            fig.add_annotation(
-                x=tmp1, y=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] + 1,
-                xref='x', yref='y', 
-                ax=tmp1, ay=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] - 1,
-                axref='x', ayref='y',
-                arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor='red'
-            )
-
-            # Text Annotation
-            fig.add_annotation(
-                x=tmp1, y=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] - 1,
-                xref='x', yref='y',
-                text=f"  Event:{ev}<br>EventType:  {tmp2['eventType']}<br>Type:  {eventType}<br>Len:   {round(tmp1,1)}m<br>RefLoss: {tmp2['reflectionLoss_dB']}dB{refQ}<br>Loss:  {tmp2['spliceLoss_dB']}dB{lossQ}",
-                showarrow=False,
-                font=dict(size=8)
-            )
-
-        # Display the Plot
-        fig.show()
-
-
     def ploter(self):
+        df = pd.DataFrame(self.dataset.items(), columns=['Length', 'Reflection']) 
 
-        c = plt.subplots(figsize=(15,10))[1]
-        c.set_facecolor('white')
-        c.plot(self.dataset.keys(),self.dataset.values(),color='darkgreen',lw=2)
+        # Reflection differences
+        df['Diff'] = df['Reflection'].rolling(window=5).mean().diff()  
 
-        c.grid(True, color='gray', linestyle='--', linewidth=0.5) 
-        c.tick_params(color='dimgray', labelcolor='dimgray')  
-        for ev in self.jsonoutput["events"]:
-            refQ = ""
-            lossQ = ""
-            tmp1 = self.jsonoutput["events"][ev]['eventPoint_m']
-            tmp2 = self.jsonoutput['events'][ev]
-            if "E9999" in tmp2['eventType']:
-                eventType = "EOF"
-            elif float(tmp2['reflectionLoss_dB']) == 0:
-                eventType = "Splice"
-                refQ = " - OK"
-            else:
-                eventType = "Connector"
-                if float(tmp2['reflectionLoss_dB']) <= -40:
-                    refQ = " - OK"
-                else:
-                    refQ = " - !"
+        # Rolling average (window size of 5 for example)
+        df['Rolling_Avg'] = df['Reflection'].rolling(5).mean()
+
+        # Gradient (approximate)
+        df['Gradient'] = df['Diff'] / df['Length'].diff() 
+
+        # # df['Event'] = np.where(df['Diff'].abs() > 0.1, 'Potential Connector', 'Normal')
+        
+        # threshold = 0.002  # Adjust this based on your data
+        # consecutive_increases = 10  # How many consecutive increases to look for
+
+        # potential_events = []
+        # start_index = None
+
+        # for i, diff in enumerate(df['Diff']):
+        #     if diff > threshold:
+        #         if start_index is None:
+        #             start_index = i
+        #         elif i - start_index >= consecutive_increases:  
+        #             end_index = i + 10  # Account for 100 point change span
+        #             potential_events.append((start_index, end_index))
+        #             start_index = None
+        #     else:
+        #         start_index = None
+
+        # # Update the DataFrame
+        # df['Event'] = 'Normal'  # Set to normal by default
+        # for start, end in potential_events:
+        #     df.loc[start:end, 'Event'] = 'Potential Connector'
+
+        # df['Event'] = np.where((df['Diff'].abs() > 3) & (df['Diff'].abs() < 8), 'Check', 'Normal') 
             
-            if float(tmp2['spliceLoss_dB']) == 0:
-                lossQ = " - Ghost!"
-            elif float(tmp2['spliceLoss_dB']) <= 1:
-                lossQ = " - OK"
-            else:
-                lossQ = " - !" 
-                
-            c.annotate("",xy=(tmp1,self.dataset[tmp1] + 1),
-                       xytext=(tmp1,self.dataset[tmp1] - 1),
-                        arrowprops=dict(arrowstyle="<->",color="red",connectionstyle= "bar,fraction=0"))
+############################
+        # df = pd.DataFrame(self.dataset.items(), columns=['Length', 'Reflection']) 
+        # df['Diff'] = df['Reflection'].diff()
+        # df['Gradient'] = df['Diff'] / df['Length'].diff()  # Assuming 'Length' is a column
 
-            c.annotate(f"  Event:{ev}\n  EventType:  {tmp2['eventType']}\n  Type:  {eventType}\n  Len:   {round(tmp1,1)}m\n  RefLoss:   {tmp2['reflectionLoss_dB']}dB{refQ}\n  Loss:  {tmp2['spliceLoss_dB']}dB{lossQ}",
-                      xy=(tmp1,self.dataset[tmp1]),
-                          xytext=(tmp1,self.dataset[tmp1]-1),fontsize=8)
+        # threshold_diff = 5  
+        # min_consecutive_low = 20  
 
-        c.set(xlabel='Fiber Length (m)', ylabel='Optical Power(dB)',title='OTDR Graph')
-        plt.show()
+        # potential_connectors = []
+        # fiber_end = None
+
+        # for i, row in df.iterrows():
+        #     if row['Diff'] > threshold_diff:
+        #         # Potential connector start
+        #         start_index = i
+        #     elif row['Diff'] < -threshold_diff:  
+        #         if fiber_end is None:
+        #             # Check if preceded by high reflection
+        #             if start_index is not None and df.loc[start_index]['Diff'] > threshold_diff:
+        #                 # Likely end of connector:
+        #                 end_index = i - 1
+        #                 window_size = 10 
+        #                 potential_connectors.append((start_index - window_size, end_index))
+        #                 start_index = None
+        #             else:
+        #                 # Potentially fiber end
+        #                 consecutive_low = 1  # Initialize here
+        #             fiber_end = i
+        #         else:
+        #             consecutive_low += 1  # Only increment if initialized 
+        #             if consecutive_low >= min_consecutive_low:
+        #                 break  
+
+        # # Update DataFrame to mark events (replace 'Event' with your column name)
+        # df['Event'] = 'Normal'
+        # for start, end in potential_connectors:
+        #     df.loc[start:end, 'Event'] = 'Connector'
+        # if fiber_end is not None:
+        #     df.loc[fiber_end:, 'Event'] = 'End of Fiber'
+
+#####################################################
+        # plt.figure(figsize=(10, 6)) # Adjust figure size if needed
+        # plt.plot(df['Length'], df['Reflection'], label='Reflection')
+        # plt.plot(df['Length'], df['Diff'], label='Difference')
+        # plt.plot(df['Length'], df['Rolling_Avg'], label='Rolling Average')
+        # plt.plot(df['Length'], df['Gradient'], label='Gradient')
+        # plt.xlabel('Length')
+        # plt.ylabel('Reflection')
+        # plt.title('OTDR Data Analysis')
+        # plt.legend()
+        # plt.grid(True) 
+        # plt.show()
+###################################################################
+        # fig = px.line(df, x='Length', y=['Reflection', 'Diff', 'Rolling_Avg', 'Gradient'], title='OTDR Data Analysis')
+        # fig.show()
+######################################################
+        # fig = go.Figure()
+        # fig.add_trace(go.Scatter(x=df['Length'], y=df['Reflection'], name='Reflection'))
+        # for i, event in enumerate(df['Event']):
+        #     if event == 'Potential Connector':
+        #         start_length = df.iloc[i]['Length']
+        #         end_length = df.iloc[i + 1]['Length']
+        #         fig.add_shape(type='rect',
+        #             x0=start_length, y0=-50,  # Adjust y0, y1 for visual positioning 
+        #             x1=end_length, y1=-40, 
+        #             line=dict(color='RoyalBlue'),
+        #             fillcolor='LightSalmon',
+        #             opacity=0.5
+        # )
+
+        # fig.update_layout(title='OTDR Data with Potential Connectors',
+        #                 xaxis_title='Length',
+        #                 yaxis_title='Reflection')
+        # fig.show()
+####################################################
+        fig = tls.make_subplots(rows=2, cols=1, shared_xaxes=True)
+        fig2 = px.line(df, x='Length', y=['Reflection', 'Diff', 'Rolling_Avg', 'Gradient'], title='OTDR Data Analysis')
+
+        # Main subplot
+        fig.add_trace(go.Scatter(
+            x=df['Length'], y=df['Reflection'], 
+            mode='lines', name='Reflection'
+        ), row=1, col=1)
+
+        # Event subplot
+        fig.add_trace(go.Scatter(
+            x=df[df['Event'] == 'Potential Connector']['Length'], 
+            y=df[df['Event'] == 'Potential Connector']['Reflection'],
+            mode='markers', name='Potential Connectors'
+        ), row=2, col=1) 
+
+        fig.update_layout(title='OTDR Data with Event Visualization',
+                        height=600) 
+        fig.show()
+        fig2.show()
+#################################################################
+        # plt.plot(df['Length'], df['Reflection'])
+        # plt.xlabel('Length')
+        # plt.ylabel('Reflection')
+        # plt.title('OTDR Data')
+        # plt.show()
 
     def hexparser(self,cleanhex,mode=""):
         if mode == "schmutzig":
@@ -277,15 +295,12 @@ class sorReader:
         fixInfos["range_m"] = round(fixInfos["sampleQty"] * fixInfos["resolution_m"],3)
         return fixInfos
 
-    def dataPts(self):
-        def dB(point):
-            return point * -1000 * (10 ** -6)
-    
+    def dataPts(self):    
         dtpoints = self.hexdata[self.SecLocs["DataPts"][1]*2:self.SecLocs[self.GetNext("DataPts")][1]*2][40:]
         self.dataset = {}
         for length in range(self.jsonoutput['sampleQty']):
             passedlen = round(length * self.jsonoutput['resolution_m'],3)
-            self.dataset[passedlen]=dB(self.hexparser(dtpoints[length*4:length*4 + 4]))
+            self.dataset[passedlen]=self.hexparser(dtpoints[length*4:length*4 + 4]) * -1000 * (10 ** -6)
 
     def keyEvents(self):
         keyevents = {}
@@ -317,8 +332,43 @@ class sorReader:
         return keyevents
 
 
+
+def find_end_of_fiber(otdr_data, drop_threshold=3, stability_window=10):
+
+
+    distances = list(otdr_data.keys())
+    reflections = list(otdr_data.values())
+
+    for i in range(len(reflections) - 1):
+        if reflections[i + 1] - reflections[i] <= -drop_threshold:  # Detect sharp drop
+            # Check for stability
+            if all(abs(reflections[j] - reflections[i + 1]) < 1 
+                   for j in range(i + 2, i + stability_window + 2)):
+                return distances[i]  
+
+    return None  # No end-of-fiber event found
+
+
+
+
+
+
 if __name__ == "__main__":
-    sorFilePath = "ddfs.sor"
-    c = sorReader(sorFilePath)
-    pp(c.jsonoutput)
-    c.ploter()
+    # r1 = sorReader(u"/Users/aramneja/Library/CloudStorage/OneDrive-Nokia/UDM/MyData/MacData/Projects/Belgium/Elia/OTDR Issue/otdrs/orig/TS-auvel150d1-OTDR-1-10-P3-OTS_DW067_auvel150d1-achen380d1-PROFILE2-11288-20231204_17-02-50.sor")
+    # r2 = sorReader(u"/Users/aramneja/Downloads/forj2_01_04_LO_20240321_11-38-03.sor")
+    # r1.ploter()
+
+    otdr_data = {0: 10, 10: 8, 20: 5, 30: 10, 40: -20, 45: -40, 50: -50}  
+
+    end_of_fiber_distance = find_end_of_fiber(otdr_data, drop_threshold=5, stability_window=1) 
+
+    if end_of_fiber_distance:
+        print("End of fiber found at approximately:", end_of_fiber_distance)
+    else:
+        print("End of fiber not detected within the data.")
+
+    plt.plot(list(otdr_data.keys()), list(otdr_data.values()))
+    plt.xlabel("Distance (m)")
+    plt.ylabel("Power (dB)")
+    plt.title("OTDR Trace")
+    plt.show()
