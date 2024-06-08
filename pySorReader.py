@@ -38,8 +38,8 @@ class sorReader:
         self.decodedfile = "".join(list(map(chr,self.rawdecodedfile)))
         self.SecLocs = self.GetOrder()
         self.jsonoutput["bellcoreVersion"] = self.bellcore_version()
-        # if "2.1" not in str(self.jsonoutput["bellcoreVersion"]):
-        #     print("This script works best with bellcore Version 2.1 and may not be completely compatible with this file: {}.".format(self.jsonoutput["bellcoreVersion"]))
+        if "2.1" not in str(self.jsonoutput["bellcoreVersion"]):
+            print("This script works best with bellcore Version 2.1 and may not be completely compatible with this file: {}.".format(self.jsonoutput["bellcoreVersion"]))
         self.jsonoutput["totalLoss_dB"] = self.totalloss()
         self.jsonoutput["vacuumSpeed_m/us"] = self.c
         self.jsonoutput.update(self.SupParams())
@@ -81,13 +81,13 @@ class sorReader:
                         "BlocOtdrPrivate",
                         "ActernaConfig",
                         "ActernaMiniCurve",
-                        "JDSUEvenementsMTS"
+                        "JDSUEvenementsMTS",
+                        "Cksum"
                         ]
         SectionLocations = {}
         for word in sections:
             SectionLocations[word] = [m.start() for m in re.finditer(word,self.decodedfile)]
         
-
         return SectionLocations
 
     def plotly(self,draw="line"):
@@ -159,7 +159,6 @@ class sorReader:
         # Display the Plot
         fig.show()
 
-
     def ploter(self):
 
         c = plt.subplots(figsize=(15,10))[1]
@@ -172,6 +171,7 @@ class sorReader:
             refQ = ""
             lossQ = ""
             tmp1 = self.jsonoutput["events"][ev]['eventPoint_m']
+
             tmp2 = self.jsonoutput['events'][ev]
             if "E9999" in tmp2['eventType']:
                 eventType = "EOF"
@@ -191,12 +191,16 @@ class sorReader:
                 lossQ = " - OK"
             else:
                 lossQ = " - !" 
-                
+            
+            if tmp1 > 20260 and tmp1 < 20270:
+                print(tmp1)
+                print(self.dataset[tmp1])
+
             c.annotate("",xy=(tmp1,self.dataset[tmp1] + 1),
                        xytext=(tmp1,self.dataset[tmp1] - 1),
                         arrowprops=dict(arrowstyle="<->",color="red",connectionstyle= "bar,fraction=0"))
 
-            c.annotate(f"  Event:{ev}\n  EventType:  {tmp2['eventType']}\n  Type:  {eventType}\n  Len:   {round(tmp1,1)}m\n  RefLoss:   {tmp2['reflectionLoss_dB']}dB{refQ}\n  Loss:  {tmp2['spliceLoss_dB']}dB{lossQ}",
+            c.annotate(f"  Event:{ev}\n  EventType:  {tmp2['eventType']}\n  EventRef:  {self.dataset[tmp2['eventPoint_m']]}\n  Type:  {eventType}\n  Len:   {round(tmp1,1)}m\n  RefLoss:   {tmp2['reflectionLoss_dB']}dB{refQ}\n  Loss:  {tmp2['spliceLoss_dB']}dB{lossQ}",
                       xy=(tmp1,self.dataset[tmp1]),
                           xytext=(tmp1,self.dataset[tmp1]-1),fontsize=8)
 
@@ -222,12 +226,19 @@ class sorReader:
         return self.hexparser((self.hexdata[(self.SecLocs["Map"][0]+4)*2:(self.SecLocs["Map"][0]+5)*2]))/ 100
 
     def totalloss(self):
-        totallossinfo = self.hexdata[(self.SecLocs["WaveMTSParams"][1]-22)*2:(self.SecLocs["WaveMTSParams"][1]-18)*2]
-        return str(round(self.hexparser(totallossinfo)*0.001,3))
+        if self.SecLocs["WaveMTSParams"] != []:
+            totallossinfo = self.hexdata[(self.SecLocs["WaveMTSParams"][1]-22)*2:(self.SecLocs["WaveMTSParams"][1]-18)*2]
+            return str(round(self.hexparser(totallossinfo)*0.001,3))
+        else:
+            print("WaveMTSParams section not found in the sor file!")
+            return 0
 
     def fiberlength(self):
-        length = self.hexparser(self.hexdata[(self.SecLocs["WaveMTSParams"][1]-14)*2:(self.SecLocs["WaveMTSParams"][1]-10)*2])
-        return round(length * (10 ** -4) * self.c / self.jsonoutput['refractionIndex'],3)
+        if self.SecLocs["WaveMTSParams"] != []:
+            length = self.hexparser(self.hexdata[(self.SecLocs["WaveMTSParams"][1]-14)*2:(self.SecLocs["WaveMTSParams"][1]-10)*2])
+            return round(length * (10 ** -4) * self.c / self.jsonoutput['refractionIndex'],3)
+        else:
+            return 0
 
     def SupParams(self):
         supInfos = {}
@@ -260,21 +271,43 @@ class sorReader:
 
     def fixedParams(self):
         fixInfos = {}
-        fixInfo = self.hexdata[(self.SecLocs["FxdParams"][1]+10)*2:(self.SecLocs[self.GetNext("FxdParams")][1]*2)]
-        fixInfos["dateTime"] = datetime.fromtimestamp(self.hexparser(fixInfo[:8])).strftime('%Y-%m-%d %H:%M:%S')
-        fixInfos["unit"] = self.hexparser(fixInfo[8:12],"schreiben")
-        fixInfos["actualWavelength_nm"] = self.hexparser(fixInfo[12:16]) / 10
-        fixInfos["pulseWidthNo"] = self.hexparser(fixInfo[32:36])
-        fixInfos["pulseWidth_ns"] = self.hexparser(fixInfo[36:40])
-        fixInfos["sampleQty"] = self.hexparser(fixInfo[48:56])
-        fixInfos['ior'] = self.hexparser(fixInfo[56:64])
+        fixInfo = self.hexdata[(self.SecLocs["FxdParams"][1]+10)*2:(self.SecLocs[self.GetNext("FxdParams")][1]*2)];p=8
+        fixInfos["dateTime"] = datetime.fromtimestamp(self.hexparser(fixInfo[:p])).strftime('%Y-%m-%d %H:%M:%S')
+        fixInfos["unit"] = self.hexparser(fixInfo[p:p+4],"schreiben");p+=4
+        fixInfos["actualWavelength_nm"] = self.hexparser(fixInfo[p:p+4]) / 10;p+=4
+        fixInfos["AO"] = self.hexparser(fixInfo[p:p+8]); p+=8
+        fixInfos["AOD"] = self.hexparser(fixInfo[p:p+8]); p+=8
+        fixInfos["pulseWidthNo"] = self.hexparser(fixInfo[p:p+4]);p+=4
+
+        fixInfos["pulseWidth_ns"] = []
+        for i in range(fixInfos["pulseWidthNo"]):
+            fixInfos["pulseWidth_ns"].append(self.hexparser(fixInfo[p:p+4]));p+=4
+
+        resolution_m_p1 = []
+        for i in range(fixInfos["pulseWidthNo"]):
+            resolution_m_p1.append(self.hexparser(fixInfo[p:p+8]) * (10 ** -8));p+=8
+
+        fixInfos["sampleQty"] = []
+        for i in range(fixInfos["pulseWidthNo"]):
+            fixInfos["sampleQty"].append(self.hexparser(fixInfo[p:p+8]));p+=8
+
+        fixInfos['ior'] = self.hexparser(fixInfo[p:p+8]); p+=8
         fixInfos["refractionIndex"] = fixInfos['ior']* (10 ** -5)
         fixInfos["fiberLightSpeed_km/ms"] = self.c / fixInfos['refractionIndex']
-        fixInfos["resolution_m"] = self.hexparser(fixInfo[40:48]) * (10 ** -8) * fixInfos["fiberLightSpeed_km/ms"]
-        fixInfos["backscatteringCo_dB"] = self.hexparser(fixInfo[64:68]) * -0.1
-        fixInfos["averaging"] = self.hexparser(fixInfo[68:76])
-        fixInfos["averagingTime_M"] = round(self.hexparser(fixInfo[76:80])/600,3)
-        fixInfos["range_m"] = round(fixInfos["sampleQty"] * fixInfos["resolution_m"],3)
+
+        fixInfos["resolution_m"] = []
+        for i in range(fixInfos["pulseWidthNo"]):
+            fixInfos["resolution_m"].append(resolution_m_p1[i] * fixInfos["fiberLightSpeed_km/ms"] )
+
+        fixInfos["backscatteringCo_dB"] = self.hexparser(fixInfo[p:p+4]) * -0.1;p +=4
+        fixInfos["averaging"] = self.hexparser(fixInfo[p:p+8]);p+=8
+        fixInfos["averagingTime_M"] = round(self.hexparser(fixInfo[p:p+4])/600,3);p+=4
+
+
+        fixInfos["range_m"] = []
+        for i in range(fixInfos["pulseWidthNo"]):
+            fixInfos["range_m"].append(round(fixInfos["sampleQty"][i] * fixInfos["resolution_m"][i],3))
+
         return fixInfos
 
     def dataPts(self):
@@ -283,23 +316,27 @@ class sorReader:
     
         dtpoints = self.hexdata[self.SecLocs["DataPts"][1]*2:self.SecLocs[self.GetNext("DataPts")][1]*2][40:]
         self.dataset = {}
-        for length in range(self.jsonoutput['sampleQty']):
-            passedlen = round(length * self.jsonoutput['resolution_m'],3)
-            self.dataset[passedlen]=dB(self.hexparser(dtpoints[length*4:length*4 + 4]))
+        for s in range(self.jsonoutput["pulseWidthNo"]):
+            for length in range(self.jsonoutput['sampleQty'][s]):
+                passedlen = round(length * self.jsonoutput['resolution_m'][s],3)
+                self.dataset[passedlen]=dB(self.hexparser(dtpoints[length*4:length*4 + 4]))
 
     def keyEvents(self):
         keyevents = {}
-        events = self.hexdata[self.SecLocs["KeyEvents"][1]*2:self.SecLocs[self.GetNext("KeyEvents")][1]*2]
-        evnumbers= self.hexparser(events[20:24])
-        pure_events = events[24:-44]
-        eventhex = wrap(pure_events, width=int(len(pure_events)/evnumbers))
-        for e in eventhex:
+        events = self.hexdata[(self.SecLocs["KeyEvents"][1]+10)*2:self.SecLocs[self.GetNext("KeyEvents")][1]*2]
+        evnumbers= self.hexparser(events[:4])
+        if self.SecLocs["NokiaParams"] == []:
+            pure_events = events[4:-44] #for non-advanced SOR files
+        else:
+            pure_events = events[4:-58] #for advanced sor files
+        eventhexlist = wrap(pure_events, width=int(len(pure_events)/evnumbers))
+        for e in eventhexlist:
             eNum = self.hexparser(e[:4])
             keyevents[eNum] = {}
             keyevents[eNum]["eventPoint_m"] = self.hexparser(e[4:12]) * (10 ** -4) * self.jsonoutput["fiberLightSpeed_km/ms"]
-            stValue = keyevents[eNum]["eventPoint_m"] % self.jsonoutput["resolution_m"]
-            if stValue >= self.jsonoutput["resolution_m"] / 2:
-                keyevents[eNum]["eventPoint_m"] = round(keyevents[eNum]["eventPoint_m"] +(self.jsonoutput["resolution_m"] - stValue),3)
+            stValue = keyevents[eNum]["eventPoint_m"] % self.jsonoutput["resolution_m"][0]
+            if stValue >= self.jsonoutput["resolution_m"][0] / 2:
+                keyevents[eNum]["eventPoint_m"] = round(keyevents[eNum]["eventPoint_m"] +(self.jsonoutput["resolution_m"][0] - stValue),3)
             else:
                 keyevents[eNum]["eventPoint_m"] = round(keyevents[eNum]["eventPoint_m"] - stValue , 3)
 
@@ -316,9 +353,118 @@ class sorReader:
 
         return keyevents
 
+def find_scale(c,lenRef):
+    for k,v in c.dataset.items():
+        if k > lenRef and k < lenRef + 12:
+            return (k,v)
+        
+def align_scales(sor_objects,ref_object,refLen):
+    for s in sor_objects:
+        _,vs = find_scale(s,refLen)
+        _,vref = find_scale(ref_object,refLen)
+        diff = vref - vs
+        s.dataset = {k: v+diff for k, v in s.dataset.items()}
 
 if __name__ == "__main__":
-    sorFilePath = "ddfs.sor"
-    c = sorReader(sorFilePath)
-    pp(c.jsonoutput)
-    c.ploter()
+    p1 = "/Users/aramneja/Downloads/P1.sor"
+    p2 = "/Users/aramneja/Downloads/P2.sor"
+    p3 = "/Users/aramneja/Downloads/P3.sor"
+    p4 = "/Users/aramneja/Downloads/P4.sor"
+    p5 = "/Users/aramneja/Downloads/P5.sor"
+    p6 = "/Users/aramneja/Downloads/P6.sor"
+    CADV = "/Users/aramneja/TS-A1601-OTDR-1-10-P1-A1601_IROADM-1-3-LINEOUT-ILA_ASWG-1-3-LINEIN-PROFILE2-21-20240603_20-44-20.sor"
+    c1 = sorReader(p1)
+
+
+    c2 = sorReader(p2)
+    c3 = sorReader(p3)
+    c4 = sorReader(p4)
+    c5 = sorReader(p5)
+    c6 = sorReader(p6)
+    cADV = sorReader(p1)
+
+
+    # pp(c1.jsonoutput)
+    # pp(c2.jsonoutput)
+    # pp(c3.jsonoutput)
+    # pp(c4.jsonoutput)
+    # pp(c5.jsonoutput)
+    pp(c6.jsonoutput)
+    # pp( cADV.jsonoutput)
+    # pp(cx.jsonoutput)
+    # cADV.ploter()
+    ref = 500
+    print(find_scale(c1,ref))
+    print(find_scale(c2,ref))
+    print(find_scale(c3,ref))
+    print(find_scale(c4,ref))
+    print(find_scale(c5,ref))
+    print(find_scale(c6,ref))
+
+    align_scales([c1,c2,c3,c4,c5,c6],c1,ref)
+
+    print(find_scale(c1,ref))
+    print(find_scale(c2,ref))
+    print(find_scale(c3,ref))
+    print(find_scale(c4,ref))
+    print(find_scale(c5,ref))
+    print(find_scale(c6,ref))
+    c1.ploter()
+    c2.ploter()
+    c3.ploter()
+    c4.ploter()
+    c5.ploter()
+    c6.ploter()
+
+
+    
+    cx = c6
+
+    for d in [c1,c2,c3,c4,c5,c6]:
+        cx.dataset.update(d.dataset)
+        cx.keyEvents
+
+
+"""
+P1:
+ 'pulseWidth_ns': [10000],
+ 'range_m': [265832.466],
+ 'refractionIndex': 1.465,
+ 'resolution_m': [10.231802696587032],
+ 'sampleQty': [25981],
+
+P2:
+'pulseWidth_ns': [3000],
+'range_m': [163514.439],
+'refractionIndex': 1.465,
+'resolution_m': [5.115901348293516],
+'sampleQty': [31962],
+
+P3:
+ 'pulseWidth_ns': [1000],
+ 'range_m': [81621.648],
+ 'refractionIndex': 1.465,
+ 'resolution_m': [2.557950674146758],
+ 'sampleQty': [31909],
+
+ P4:
+ 'pulseWidth_ns': [100],
+ 'range_m': [40728.33],
+ 'refractionIndex': 1.465,
+ 'resolution_m': [0.6394876685366895],
+ 'sampleQty': [63689],
+
+ P5:
+ 'pulseWidth_ns': [30],
+ 'range_m': [20230.192],
+ 'refractionIndex': 1.465,
+ 'resolution_m': [0.31974383426834474],
+ 'sampleQty': [63270],
+
+ P6:
+ 'pulseWidth_ns': [10],
+ 'range_m': [10003.026],
+ 'refractionIndex': 1.465,
+ 'resolution_m': [0.15987191713417237],
+ 'sampleQty': [62569],
+"""
