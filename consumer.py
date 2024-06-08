@@ -13,10 +13,7 @@ if __name__ == "__main__":
     # r = sorReader(u"/Users/aramneja/Downloads/forj3_01_04_LO_20240321_11-56-49.sor")  #Disconnected Before FORJ
     # r = sorReader(u"/Users/aramneja/Downloads/500m_01_06_LO_20240523_13-43-39.sor")  #Disconnected Before FiberSpool
     # r = sorReader(u"/Users/aramneja/BL-A1601-OTDR-1-10-P1-A1601_IROADM-1-3-LINEOUT-ILA_ASWG-1-3-LINEIN-AllProfiles-66-20240605_07-59-09.sor")
-    r = sorReader(u"/Users/aramneja/Desktop/ML_OTDR/orig/TS-auvel150d1-OTDR-1-10-P3-OTS_DW067_auvel150d1-achen380d1-PROFILE2-11289-20231204_17-15-58.sor")  #Connected
-    # pp(r.jsonoutput)
-    # r.ploter()
-    # r.plotly("line")
+    r = sorReader(u"/Users/aramneja/TS-A1601-OTDR-1-10-P1-A1601_IROADM-1-3-LINEOUT-ILA_ASWG-1-3-LINEIN-PROFILE2-21-20240603_20-44-20.sor")  #Connected
     pp(r.jsonoutput)
     r.ploter()
 
