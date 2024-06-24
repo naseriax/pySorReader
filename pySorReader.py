@@ -2,7 +2,7 @@
 ###    Category                : Automation                     ###
 ###    Created by              : Naseredin aramnejad            ###
 ###    Tested Environment      : Python 3.12                    ###
-###    Last Modification Date  : 08/07/2024                     ###
+###    Last Modification Date  : 24/07/2024                     ###
 ###    Contact Information     : naseredin.aramnejad@gmail.com  ###
 ###################################################################
 
@@ -12,11 +12,11 @@ import matplotlib.pyplot as plt
 import struct
 import re
 from pprint import pprint as pp
-from textwrap import wrap
+# from textwrap import wrap
 from pprint import pprint as pp
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+# import pandas as pd
+# import plotly.express as px
+# import plotly.graph_objects as go
 
 __author__ = "Naseredin Aramnejad"
 
@@ -42,9 +42,10 @@ class sorReader:
         self.jsonoutput.update(self.SupParams())
         self.jsonoutput.update(self.genParams())
         self.jsonoutput.update(self.fixedParams())
-        self.jsonoutput["fiberLength_m"] = self.fiberlength()
+
         self.dataPts()
         self.jsonoutput["events"] = self.keyEvents()
+        self.jsonoutput["fiberLength_m"] = self.fiberlength()
 
     def GetNext(self, key):
         if key not in self.SecLocs:
@@ -94,58 +95,63 @@ class sorReader:
             exit()
         return SectionLocations
 
-    def plotly(self,draw="line"):
+    # def plotly(self,draw="line"):
 
-        # Data Preparation
-        df = pd.DataFrame({'Fiber Length (m)':[t[0] for t in self.dataset],
-                        'Optical Power(dB)': [t[1] for t in self.dataset]})
+    #     # Data Preparation
+    #     df = pd.DataFrame({'Fiber Length (m)':[t[0] for t in self.dataset],
+    #                     'Optical Power(dB)': [t[1] for t in self.dataset]})
 
-        # Base Plotly Express Graph
-        if draw == "line":
-            fig = px.line(df, x='Fiber Length (m)', y='Optical Power(dB)', color_discrete_sequence=['darkgreen'],title='OTDR Graph')
-        else:
-            fig = px.scatter(df, x='Fiber Length (m)', y='Optical Power(dB)', color_discrete_sequence=['darkgreen'],title='OTDR Graph')
+    #     # Base Plotly Express Graph
+    #     if draw == "line":
+    #         fig = px.line(df, x='Fiber Length (m)', y='Optical Power(dB)', color_discrete_sequence=['darkgreen'],title='OTDR Graph')
+    #     else:
+    #         fig = px.scatter(df, x='Fiber Length (m)', y='Optical Power(dB)', color_discrete_sequence=['darkgreen'],title='OTDR Graph')
 
-        fig.update_layout(xaxis_title='Fiber Length (m)', yaxis_title='Optical Power(dB)')
+    #     fig.update_layout(xaxis_title='Fiber Length (m)', yaxis_title='Optical Power(dB)')
 
-        # Grid and Tick Styling
-        fig.update_layout(
-            xaxis=dict(gridcolor='gray', gridwidth=0.5, linecolor='dimgray'),
-            yaxis=dict(gridcolor='gray', gridwidth=0.5, linecolor='dimgray'),
-            paper_bgcolor='white',
-            plot_bgcolor='white'
-        )
+    #     # Grid and Tick Styling
+    #     fig.update_layout(
+    #         xaxis=dict(gridcolor='gray', gridwidth=0.5, linecolor='dimgray'),
+    #         yaxis=dict(gridcolor='gray', gridwidth=0.5, linecolor='dimgray'),
+    #         paper_bgcolor='white',
+    #         plot_bgcolor='white'
+    #     )
 
-        # Annotations
-        for ev in self.jsonoutput["events"]:
-            tmp1 = self.jsonoutput["events"][ev]['eventPoint_m']
-            tmp2 = self.jsonoutput['events'][ev]
+    #     # Annotations
+    #     for ev in self.jsonoutput["events"]:
+    #         tmp1 = self.jsonoutput["events"][ev]['eventPoint_m']
+    #         tmp2 = self.jsonoutput['events'][ev]
 
-            # Arrow Annotation
-            fig.add_annotation(
-                x=tmp1, y=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] + 1,
-                xref='x', yref='y', 
-                ax=tmp1, ay=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] - 1,
-                axref='x', ayref='y',
-                arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor='red'
-            )
+    #         # Arrow Annotation
+    #         fig.add_annotation(
+    #             x=tmp1, y=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] + 1,
+    #             xref='x', yref='y', 
+    #             ax=tmp1, ay=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] - 1,
+    #             axref='x', ayref='y',
+    #             arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor='red'
+    #         )
 
-            # Text Annotation
-            fig.add_annotation(
-                x=tmp1, y=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] - 1,
-                xref='x', yref='y',
-                text=f"  Event:{ev}<br>EventType:  {tmp2['eventType']}<br>Len:   {round(tmp1,1)}m<br>RefLoss: {tmp2['reflectionLoss_dB']}dB<br>Loss:  {tmp2['spliceLoss_dB']}dB",
-                showarrow=False,
-                font=dict(size=8)
-            )
+    #         # Text Annotation
+    #         fig.add_annotation(
+    #             x=tmp1, y=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] - 1,
+    #             xref='x', yref='y',
+    #             text=f"  Event:{ev}<br>EventType:  {tmp2['eventType']}<br>Len:   {round(tmp1,1)}m<br>RefLoss: {tmp2['reflectionLoss_dB']}dB<br>Loss:  {tmp2['spliceLoss_dB']}dB",
+    #             showarrow=False,
+    #             font=dict(size=8)
+    #         )
 
-        # Display the Plot
-        fig.show()
+    #     # Display the Plot
+    #     fig.show()
 
     def return_index(self,data,v):
+        closest = (0,0)
         for i in data:
             if i[0] == v:
                 return i[1]
+            if abs(v-i[0]) < abs(v - closest[0]) and i[0] < v:
+                closest = i
+        else:
+            return closest[1]
              
     def plotter(self):
 
@@ -159,6 +165,10 @@ class sorReader:
             # refQ = ""
             # lossQ = ""
             ev_location = self.jsonoutput["events"][ev]['eventPoint_m']
+            if self.return_index(self.dataset,ev_location) == None:
+                continue
+            # pp(ev_location)
+            # pp(self.return_index(self.dataset,ev_location))
 
             ev_no = self.jsonoutput['events'][ev]
             # if "E9999" in ev_no['eventType']:
@@ -220,12 +230,9 @@ class sorReader:
             return 0
 
     def fiberlength(self):
-        if self.SecLocs["WaveMTSParams"] != []:
-            try:
-                length = self.hexparser(self.hexdata[(self.SecLocs["WaveMTSParams"][1]-14)*2:(self.SecLocs["WaveMTSParams"][1]-10)*2])
-                return round(length * (10 ** -4) * self.c / self.jsonoutput['refractionIndex'],3)
-            except Exception as e:
-                print(self.extractFileName(self.filename)+": "+str(e))
+        for _,ev in self.jsonoutput["events"].items():
+            if "EXXX" in ev['eventType'] or "E999" in ev['eventType']:
+                return ev['eventPoint_m']
         else:
             return 0
 
@@ -279,7 +286,7 @@ class sorReader:
         fixInfos["sampleQty"] = []
         for i in range(fixInfos["pulseWidthNo"]):
             fixInfos["sampleQty"].append(self.hexparser(fixInfo[p:p+8]));p+=8
-
+        
         fixInfos['ior'] = self.hexparser(fixInfo[p:p+8]); p+=8
         fixInfos["refractionIndex"] = fixInfos['ior']* (10 ** -5)
         fixInfos["fiberLightSpeed_km/ms"] = self.c / fixInfos['refractionIndex']
@@ -287,7 +294,7 @@ class sorReader:
         fixInfos["resolution_m"] = []
         for i in range(fixInfos["pulseWidthNo"]):
             fixInfos["resolution_m"].append(resolution_m_p1[i] * fixInfos["fiberLightSpeed_km/ms"] )
-
+        
         fixInfos["backscatteringCo_dB"] = self.hexparser(fixInfo[p:p+4]) * -0.1;p +=4
         fixInfos["averaging"] = self.hexparser(fixInfo[p:p+8]);p+=8
         fixInfos["averagingTime_M"] = round(self.hexparser(fixInfo[p:p+4])/600,3);p+=4
@@ -307,14 +314,24 @@ class sorReader:
         self.dataset = []
 
         start = 0
-        for i in range(len(self.jsonoutput['sampleQty'])):
-            for j in range(start, start + self.jsonoutput['sampleQty'][i]):
-                if j < len(dtpoints):
-                    passedlen = round(j * self.jsonoutput['resolution_m'][i],3)
-                    self.dataset.append((passedlen,dB(self.hexparser(dtpoints[j*4:j*4 + 4]))))
-            start += self.jsonoutput['sampleQty'][i]
+        cumulative_length = 0
 
-        # self.dataset = sorted(self.dataset, key=lambda x: x[0])
+        for i in range(len(self.jsonoutput['sampleQty'])):
+            qty = self.jsonoutput['sampleQty'][i]
+            resolution = self.jsonoutput['resolution_m'][i]
+
+            for j in range(qty):
+                index = start + j
+                if index < len(dtpoints):
+                    hex_value = dtpoints[index*4:index*4 + 4]
+                    db_value = dB(self.hexparser(hex_value))
+                    
+                    cumulative_length += resolution
+                    passedlen = round(cumulative_length, 3)
+                    
+                    self.dataset.append((passedlen, db_value))
+
+            start += qty
 
     def mapKeyEvents(self,events):
         m = {}
@@ -367,6 +384,15 @@ class sorReader:
                 print(self.extractFileName(self.filename))
                 pp(eventhexlist)
         return keyevents
+
+    def exportAsCsv(self):
+        d = {t[0]:t[1] for t in self.dataset}
+        with open("dataset.csv","w") as o:
+            o.write("Distance (m),Power (dB)\n")
+            for k,v in d.items():
+                o.write(f'{k},{v}\n')    
+
+            o.flush()
 
 def find_scale(c,lenRef):
     for k,v in c.dataset:
