@@ -7,16 +7,11 @@
 ###################################################################
 
 import json
-from datetime import datetime
 import matplotlib.pyplot as plt
 import struct
 import re
+from datetime import datetime
 from pprint import pprint as pp
-# from textwrap import wrap
-from pprint import pprint as pp
-# import pandas as pd
-# import plotly.express as px
-# import plotly.graph_objects as go
 
 __author__ = "Naseredin Aramnejad"
 
@@ -70,6 +65,7 @@ class sorReader:
     def GetOrder(self):
         sections = [
                         "SupParams",
+                        "ExfoNewProprietaryBlock",
                         "Map",
                         "FxdParams",
                         "DataPts",
@@ -94,54 +90,6 @@ class sorReader:
             print(self.filename," file has no checksum")
             exit()
         return SectionLocations
-
-    # def plotly(self,draw="line"):
-
-    #     # Data Preparation
-    #     df = pd.DataFrame({'Fiber Length (m)':[t[0] for t in self.dataset],
-    #                     'Optical Power(dB)': [t[1] for t in self.dataset]})
-
-    #     # Base Plotly Express Graph
-    #     if draw == "line":
-    #         fig = px.line(df, x='Fiber Length (m)', y='Optical Power(dB)', color_discrete_sequence=['darkgreen'],title='OTDR Graph')
-    #     else:
-    #         fig = px.scatter(df, x='Fiber Length (m)', y='Optical Power(dB)', color_discrete_sequence=['darkgreen'],title='OTDR Graph')
-
-    #     fig.update_layout(xaxis_title='Fiber Length (m)', yaxis_title='Optical Power(dB)')
-
-    #     # Grid and Tick Styling
-    #     fig.update_layout(
-    #         xaxis=dict(gridcolor='gray', gridwidth=0.5, linecolor='dimgray'),
-    #         yaxis=dict(gridcolor='gray', gridwidth=0.5, linecolor='dimgray'),
-    #         paper_bgcolor='white',
-    #         plot_bgcolor='white'
-    #     )
-
-    #     # Annotations
-    #     for ev in self.jsonoutput["events"]:
-    #         tmp1 = self.jsonoutput["events"][ev]['eventPoint_m']
-    #         tmp2 = self.jsonoutput['events'][ev]
-
-    #         # Arrow Annotation
-    #         fig.add_annotation(
-    #             x=tmp1, y=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] + 1,
-    #             xref='x', yref='y', 
-    #             ax=tmp1, ay=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] - 1,
-    #             axref='x', ayref='y',
-    #             arrowhead=2, arrowsize=1, arrowwidth=2, arrowcolor='red'
-    #         )
-
-    #         # Text Annotation
-    #         fig.add_annotation(
-    #             x=tmp1, y=df.loc[df['Fiber Length (m)'] == tmp1, 'Optical Power(dB)'].iloc[0] - 1,
-    #             xref='x', yref='y',
-    #             text=f"  Event:{ev}<br>EventType:  {tmp2['eventType']}<br>Len:   {round(tmp1,1)}m<br>RefLoss: {tmp2['reflectionLoss_dB']}dB<br>Loss:  {tmp2['spliceLoss_dB']}dB",
-    #             showarrow=False,
-    #             font=dict(size=8)
-    #         )
-
-    #     # Display the Plot
-    #     fig.show()
 
     def return_index(self,data,v):
         closest = (0,0)
@@ -247,20 +195,20 @@ class sorReader:
         supInfos["otdrSwVersion"] = supInfo[5].strip()
         supInfos["otdrOtherInfo"] = supInfo[6].strip()
         return supInfos
-
+        
     def genParams(self):
-        buildInfo = {"BC": "as-built","CC": "as-current","RC": "as-repaired","OT": "other"}
         genInfos = {}
         genInfo = self.decodedfile[self.SecLocs["GenParams"][1]+10:self.SecLocs[self.GetNext("GenParams")][1]].split("\x00")[:-1]
+        print(genInfo)
         genInfos["lang"] = genInfo[0][:2].strip()
         genInfos["cableId"] = genInfo[0][2:].strip()
         genInfos["fiberId"] = genInfo[1].strip()
         genInfos["locationA"] = genInfo[2][4:].strip()
         genInfos["locationB"] = genInfo[3].strip()
-        genInfos["buildCondition"] = buildInfo[genInfo[5].strip()]
-        genInfos["comment"] = genInfo[14].strip()
+        genInfos["buildCondition"] = genInfo[5].strip()
+        genInfos["comment"] = genInfo[14].strip() if len(genInfo) > 14 else ""
         genInfos["cableCode"] = genInfo[4].strip()
-        genInfos["operator"] = genInfo[13].strip()
+        genInfos["operator"] = genInfo[13].strip() if len(genInfo) > 13 else ""
         genInfos["fiberType"] = f'G.{self.hexparser(genInfo[2][:2],"schmutzig")}'
         genInfos["otdrWavelength"] = f'{self.hexparser(genInfo[2][2:4],"schmutzig")} nm'
         return genInfos
