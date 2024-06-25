@@ -13,7 +13,7 @@ from pprint import pprint as pp
 
 c = sorReader("otdr_p2.sor")          # Reads/Parses the sor file.
 pp(c.jsonoutput)                      # Prints the extracted data.
-c.jsondump()                          # Dumps the extracted data as filename.json .
+c.jsondump()                          # Dumps the extracted data as filename.json.
+c.exportAsCsv()                       # Dumps the extracted DataPoints as CSV.
 c.plotter()                           # Plots the OTDR graph using matplotlib.    
-
 ```
