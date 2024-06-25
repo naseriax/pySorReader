@@ -249,12 +249,9 @@ class sorReader:
                 if index < len(dtpoints):
                     hex_value = dtpoints[index*4:index*4 + 4]
                     db_value = dB(self.hexparser(hex_value))
-                    
-                    
                     passedlen = round(cumulative_length, 3)
-                    cumulative_length += resolution
-                    
                     self.dataset.append((passedlen, db_value))
+                    cumulative_length += resolution
 
             start += qty
 
