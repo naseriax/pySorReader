@@ -252,7 +252,6 @@ class sorReader:
                     passedlen = round(cumulative_length, 3)
                     self.dataset.append((passedlen, db_value))
                     cumulative_length += resolution
-
             start += qty
 
     def mapKeyEvents(self,events):
