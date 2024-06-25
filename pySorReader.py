@@ -6,14 +6,14 @@
 ###    Contact Information     : naseredin.aramnejad@gmail.com  ###
 ###################################################################
 
+__author__ = "Naseredin Aramnejad"
+
 import json
 import matplotlib.pyplot as plt
 import struct
 import re
 from datetime import datetime
 from pprint import pprint as pp
-
-__author__ = "Naseredin Aramnejad"
 
 class sorReader:
     def __init__(self,filename):
@@ -92,7 +92,7 @@ class sorReader:
         return SectionLocations
 
     def return_index(self,data,v):
-        closest = (0,0)
+        closest = (float('inf'),0)
         for i in data:
             if i[0] == v:
                 return i[1]
@@ -110,33 +110,11 @@ class sorReader:
         c.grid(True, color='gray', linestyle='--', linewidth=0.5) 
         c.tick_params(color='dimgray', labelcolor='dimgray')  
         for ev in self.jsonoutput["events"]:
-            # refQ = ""
-            # lossQ = ""
             ev_location = self.jsonoutput["events"][ev]['eventPoint_m']
-            if self.return_index(self.dataset,ev_location) == None:
+            if self.return_index(self.dataset,ev_location)== None:
                 continue
-            # pp(ev_location)
-            # pp(self.return_index(self.dataset,ev_location))
 
             ev_no = self.jsonoutput['events'][ev]
-            # if "E9999" in ev_no['eventType']:
-            #     eventType = "EOF"
-            # elif float(ev_no['reflectionLoss_dB']) == 0:
-            #     eventType = "Splice"
-            #     refQ = " - OK"
-            # else:
-            #     eventType = "Connector"
-            #     if float(ev_no['reflectionLoss_dB']) <= -40:
-            #         refQ = " - OK"
-            #     else:
-            #         refQ = " - !"
-            
-            # if float(ev_no['spliceLoss_dB']) == 0:
-            #     lossQ = " - Ghost!"
-            # elif float(ev_no['spliceLoss_dB']) <= 1:
-            #     lossQ = " - OK"
-            # else:
-            #     lossQ = " - !" 
 
             c.annotate("",xy=(ev_location,self.return_index(self.dataset,ev_location) + 1),
                        xytext=(ev_location,self.return_index(self.dataset,ev_location) - 1),
@@ -148,16 +126,16 @@ class sorReader:
 
         c.set(xlabel='Fiber Length (m)', ylabel='Optical Power(dB)',title='OTDR Graph')
         plt.show()
-
-    def hexparser(self,cleanhex,mode=""):
+        
+    def hexparser(self, cleanhex, mode=""):
         if mode == "schmutzig":
-            return int("0x" + "".join(list(map(hex,list(map(ord,cleanhex))))[::-1]).replace("0x",""),0)
+            return int(''.join(hex(ord(c))[2:] for c in reversed(cleanhex)), 16)
         elif mode == "schreiben":
             return bytes.fromhex(cleanhex).decode()
-        elif mode== "loss":
-            return int(struct.unpack('h', bytes.fromhex(cleanhex))[0])
+        elif mode == "loss":
+            return struct.unpack('h', bytes.fromhex(cleanhex))[0]
         else:
-            return int("0x"+"".join([cleanhex[i:i+2] for i in range(0,len(cleanhex),2)][::-1]),0)   
+            return int("0x"+"".join([cleanhex[i:i+2] for i in range(0,len(cleanhex),2)][::-1]),0) 
 
     def jsondump(self):
         with open(self.filename.replace(".sor",".json").replace(".SOR",".json"),"w") as output:
@@ -174,7 +152,6 @@ class sorReader:
             except Exception as e:
                 print(self.extractFileName(self.filename)+": "+str(e))
         else:
-            # print("WaveMTSParams section not found in the sor file!")
             return 0
 
     def fiberlength(self):
@@ -199,7 +176,6 @@ class sorReader:
     def genParams(self):
         genInfos = {}
         genInfo = self.decodedfile[self.SecLocs["GenParams"][1]+10:self.SecLocs[self.GetNext("GenParams")][1]].split("\x00")[:-1]
-        print(genInfo)
         genInfos["lang"] = genInfo[0][:2].strip()
         genInfos["cableId"] = genInfo[0][2:].strip()
         genInfos["fiberId"] = genInfo[1].strip()
@@ -274,8 +250,9 @@ class sorReader:
                     hex_value = dtpoints[index*4:index*4 + 4]
                     db_value = dB(self.hexparser(hex_value))
                     
-                    cumulative_length += resolution
+                    
                     passedlen = round(cumulative_length, 3)
+                    cumulative_length += resolution
                     
                     self.dataset.append((passedlen, db_value))
 
