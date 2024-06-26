@@ -102,27 +102,27 @@ class sorReader:
             return closest[1]
              
     def plotter(self):
-
         c = plt.subplots(figsize=(14,8))[1]
         c.set_facecolor('white')
-        c.plot([t[0] for t in self.dataset],[z[1] for z in self.dataset],color='darkgreen',lw=1.3)
+        c.plot(self.distances,self.powers,color='darkgreen',lw=1.3)
 
         c.grid(True, color='gray', linestyle='--', linewidth=0.5) 
         c.tick_params(color='dimgray', labelcolor='dimgray')  
         for ev in self.jsonoutput["events"]:
             ev_location = self.jsonoutput["events"][ev]['eventPoint_m']
-            if self.return_index(self.dataset,ev_location)== None:
+            loc = self.return_index(self.dataset,ev_location)
+            if loc == None:
                 continue
 
             ev_no = self.jsonoutput['events'][ev]
 
-            c.annotate("",xy=(ev_location,self.return_index(self.dataset,ev_location) + 1),
-                       xytext=(ev_location,self.return_index(self.dataset,ev_location) - 1),
+            c.annotate("",xy=(ev_location,loc + 1),
+                       xytext=(ev_location,loc - 1),
                         arrowprops=dict(arrowstyle="<->",color="red",connectionstyle= "bar,fraction=0"))
 
             c.annotate(f"  Event:{ev}\n  EventType:  {ev_no['eventType']}\n  EventRef:  {self.return_index(self.dataset,ev_no['eventPoint_m'])}\n  Len:   {round(ev_location,1)}m\n  Comment:   {ev_no['comment']}\n  RefLoss:   {ev_no['reflectionLoss_dB']}dB\n  Loss:  {ev_no['spliceLoss_dB']}dB",
-                      xy=(ev_location,self.return_index(self.dataset,ev_location)),
-                          xytext=(ev_location,self.return_index(self.dataset,ev_location)-1),fontsize=8)
+                      xy=(ev_location,loc),
+                          xytext=(ev_location,loc-1),fontsize=8)
 
         c.set(xlabel='Fiber Length (m)', ylabel='Optical Power(dB)',title='OTDR Graph')
         plt.show()
@@ -253,6 +253,9 @@ class sorReader:
                     self.dataset.append((passedlen, db_value))
                     cumulative_length += resolution
             start += qty
+        
+        self.distances = [t[0] for t in self.dataset]
+        self.powers = [z[1] for z in self.dataset]
 
     def mapKeyEvents(self,events):
         m = {}
@@ -307,11 +310,25 @@ class sorReader:
         return keyevents
 
     def exportAsCsv(self):
-        d = {t[0]:t[1] for t in self.dataset}
+
+        self.ANN_LABEL = {}
+        
+        e = 0
+
+        for ev in self.jsonoutput["events"]:
+            ev_location = self.jsonoutput["events"][ev]['eventPoint_m']
+            loc = self.return_index(self.dataset,ev_location)
+
+            if loc == None:
+                continue
+            
+            self.ANN_LABEL[ev_location] = 1
+
         with open("dataset.csv","w") as o:
-            o.write("Distance (m),Power (dB)\n")
-            for k,v in d.items():
-                o.write(f'{k},{v}\n')    
+            o.write("Distance (m),Power (dB),Event\n")
+            for l in range(len(self.distances)):
+                e = self.ANN_LABEL.get(self.distances[l]) if self.ANN_LABEL.get(self.distances[l]) == 1 else 0
+                o.write(f'{self.distances[l]},{self.powers[l]},{e}\n')
 
             o.flush()
 
