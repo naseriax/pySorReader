@@ -312,6 +312,7 @@ class sorReader:
     def exportAsCsv(self):
 
         self.ANN_LABEL = {}
+        
         e = 0
 
         for ev in self.jsonoutput["events"]:
