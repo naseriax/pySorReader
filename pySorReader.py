@@ -312,7 +312,6 @@ class sorReader:
     def exportAsCsv(self):
 
         self.ANN_LABEL = {}
-        
         e = 0
 
         for ev in self.jsonoutput["events"]:
@@ -324,7 +323,7 @@ class sorReader:
             
             self.ANN_LABEL[ev_location] = 1
 
-        with open("dataset.csv","w") as o:
+        with open(self.filename.replace(".sor",".csv"),"w") as o:
             o.write("Distance (m),Power (dB),Event\n")
             for l in range(len(self.distances)):
                 e = self.ANN_LABEL.get(self.distances[l]) if self.ANN_LABEL.get(self.distances[l]) == 1 else 0
